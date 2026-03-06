@@ -1,14 +1,26 @@
 import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
 import { TournamentSummary, TournamentStatus } from "@/types";
+import { prisma } from "@/lib/prisma";
 
 async function getTournaments(): Promise<TournamentSummary[]> {
-  const res = await fetch(
-    `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/tournament`,
-    { cache: "no-store" }
-  );
-  if (!res.ok) return [];
-  return res.json();
+  try {
+    const tournaments = await prisma.tournament.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { contestants: true, participants: true } } },
+    });
+    return tournaments.map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      status: t.status as TournamentSummary["status"],
+      createdAt: t.createdAt.toISOString(),
+      contestantCount: t._count.contestants,
+      participantCount: t._count.participants,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function StatusBadge({ status }: { status: TournamentStatus }) {

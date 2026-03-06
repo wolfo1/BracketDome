@@ -5,61 +5,34 @@ import { IndividualScoresChart } from "@/components/stats/IndividualScoresChart"
 import { CorrelationHeatmap } from "@/components/stats/CorrelationHeatmap";
 import { RoundBreakdownChart } from "@/components/stats/RoundBreakdownChart";
 import { RoundData } from "@/types";
+import { prisma } from "@/lib/prisma";
 
-// ---------------------------------------------------------------------------
-// Types that reflect the raw shape returned by /api/tournament/[id]
-// (votes include nested participant and votedFor objects from Prisma)
-// ---------------------------------------------------------------------------
-
-interface RawVote {
-  id: string;
-  participantId: string;
-  votedForId: string;
-  participant: { id: string; name: string };
-  votedFor: { id: string; name: string; seed: number };
-}
-
-interface RawMatch {
-  id: string;
-  position: number;
-  winnerId: string | null;
-  contestant1: { id: string; name: string; seed: number } | null;
-  contestant2: { id: string; name: string; seed: number } | null;
-  winner: { id: string; name: string; seed: number } | null;
-  votes: RawVote[];
-}
-
-interface RawRound {
-  id: string;
-  number: number;
-  name: string;
-  matches: RawMatch[];
-}
-
-interface RawTournament {
-  id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  contestants: { id: string; name: string; seed: number }[];
-  participants: { id: string; name: string }[];
-  rounds: RawRound[];
-}
-
-// ---------------------------------------------------------------------------
-// Data fetching
-// ---------------------------------------------------------------------------
-
-async function fetchTournament(id: string): Promise<RawTournament | null> {
-  const baseUrl =
-    process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-
-  const res = await fetch(`${baseUrl}/api/tournament/${id}`, {
-    cache: "no-store",
-  });
-
-  if (!res.ok) return null;
-  return res.json() as Promise<RawTournament>;
+async function fetchTournament(id: string) {
+  try {
+    return await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        contestants: true,
+        participants: true,
+        rounds: {
+          orderBy: { number: "asc" },
+          include: {
+            matches: {
+              orderBy: { position: "asc" },
+              include: {
+                contestant1: true,
+                contestant2: true,
+                winner: true,
+                votes: { include: { participant: true, votedFor: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

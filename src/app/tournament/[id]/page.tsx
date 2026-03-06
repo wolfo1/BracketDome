@@ -1,16 +1,61 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import BracketView from "@/components/bracket/BracketView";
 import { TournamentData } from "@/types/index";
+import { prisma } from "@/lib/prisma";
 
 async function getTournament(id: string): Promise<TournamentData | null> {
-  const base =
-    process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const res = await fetch(`${base}/api/tournament/${id}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const t = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        contestants: { orderBy: { seed: "asc" } },
+        participants: { orderBy: { createdAt: "asc" } },
+        rounds: {
+          orderBy: { number: "asc" },
+          include: {
+            matches: {
+              orderBy: { position: "asc" },
+              include: {
+                contestant1: true,
+                contestant2: true,
+                winner: true,
+                votes: { include: { participant: true, votedFor: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!t) return null;
+    return {
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      status: t.status,
+      contestants: t.contestants,
+      participants: t.participants,
+      rounds: t.rounds.map((r) => ({
+        id: r.id,
+        number: r.number,
+        name: r.name,
+        matches: r.matches.map((m) => ({
+          id: m.id,
+          position: m.position,
+          contestant1: m.contestant1,
+          contestant2: m.contestant2,
+          winner: m.winner,
+          votes: m.votes.map((v) => ({
+            participantId: v.participantId,
+            participantName: v.participant.name,
+            votedForId: v.votedForId,
+            votedForName: v.votedFor.name,
+          })),
+        })),
+      })),
+    } as TournamentData;
+  } catch {
+    return null;
+  }
 }
 
 export default async function TournamentPage({
