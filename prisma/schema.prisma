@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String
+  passwordHash  String
+  tournaments   Tournament[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+enum TournamentStatus {
+  SETUP
+  ACTIVE
+  COMPLETED
+}
+
+model Tournament {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  status       TournamentStatus @default(SETUP)
+  createdBy    String
+  user         User             @relation(fields: [createdBy], references: [id])
+  contestants  Contestant[]
+  rounds       Round[]
+  participants Participant[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model Contestant {
+  id           String     @id @default(cuid())
+  name         String
+  seed         Int
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  votes        Vote[]
+  matchesAs1   Match[]    @relation("Contestant1")
+  matchesAs2   Match[]    @relation("Contestant2")
+  wonMatches   Match[]    @relation("Winner")
+  createdAt    DateTime   @default(now())
+}
+
+model Participant {
+  id           String     @id @default(cuid())
+  name         String
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  votes        Vote[]
+  createdAt    DateTime   @default(now())
+}
+
+model Round {
+  id           String     @id @default(cuid())
+  number       Int
+  name         String
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches      Match[]
+  createdAt    DateTime   @default(now())
+}
+
+model Match {
+  id            String      @id @default(cuid())
+  roundId       String
+  round         Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  contestant1Id String?
+  contestant1   Contestant? @relation("Contestant1", fields: [contestant1Id], references: [id])
+  contestant2Id String?
+  contestant2   Contestant? @relation("Contestant2", fields: [contestant2Id], references: [id])
+  winnerId      String?
+  winner        Contestant? @relation("Winner", fields: [winnerId], references: [id])
+  position      Int
+  votes         Vote[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Vote {
+  id            String      @id @default(cuid())
+  matchId       String
+  match         Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  votedForId    String
+  votedFor      Contestant  @relation(fields: [votedForId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([matchId, participantId])
+}
