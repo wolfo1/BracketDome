@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       }
 
       return t;
-    });
+    }, { timeout: 20000 });
 
     return NextResponse.json({ id: tournament.id }, { status: 201 });
   } catch (err) {

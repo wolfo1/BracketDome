@@ -83,7 +83,7 @@ export async function POST(
           data: { status: "COMPLETED" },
         });
       }
-    });
+    }, { timeout: 15000 });
 
     return NextResponse.json({ success: true });
   } catch (err) {
