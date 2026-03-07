@@ -5,38 +5,41 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  const tournament = await prisma.tournament.findUnique({
-    where: { id },
-    include: {
-      contestants: { orderBy: { seed: "asc" } },
-      participants: { orderBy: { createdAt: "asc" } },
-      rounds: {
-        orderBy: { number: "asc" },
-        include: {
-          matches: {
-            orderBy: { position: "asc" },
-            include: {
-              contestant1: true,
-              contestant2: true,
-              winner: true,
-              votes: {
-                include: {
-                  participant: true,
-                  votedFor: true,
-                },
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        contestants: { orderBy: { seed: "asc" } },
+        participants: { orderBy: { createdAt: "asc" } },
+        rounds: {
+          orderBy: { number: "asc" },
+          include: {
+            matches: {
+              orderBy: { position: "asc" },
+              include: {
+                contestant1: true,
+                contestant2: true,
+                winner: true,
+                votes: { include: { participant: true, votedFor: true } },
               },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  if (!tournament) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!tournament) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(tournament);
+  } catch (err) {
+    console.error("[GET /api/tournament/[id]]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(tournament);
 }
