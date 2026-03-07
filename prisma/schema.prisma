@@ -10,13 +10,14 @@ datasource db {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
+  id            String               @id @default(cuid())
+  email         String               @unique
   name          String
   passwordHash  String
   tournaments   Tournament[]
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  adminOf       TournamentAdmin[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 }
 
 enum TournamentStatus {
@@ -26,17 +27,22 @@ enum TournamentStatus {
 }
 
 model Tournament {
-  id           String           @id @default(cuid())
-  title        String
-  description  String?
-  status       TournamentStatus @default(SETUP)
-  createdBy    String
-  user         User             @relation(fields: [createdBy], references: [id])
-  contestants  Contestant[]
-  rounds       Round[]
-  participants Participant[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id              String             @id @default(cuid())
+  title           String
+  description     String?
+  status          TournamentStatus   @default(SETUP)
+  isPrivate       Boolean            @default(false)
+  startDate       DateTime?
+  maxParticipants Int                @default(50)
+  createdBy       String
+  user            User               @relation(fields: [createdBy], references: [id])
+  contestants     Contestant[]
+  rounds          Round[]
+  participants    Participant[]
+  admins          TournamentAdmin[]
+  viewers         TournamentViewer[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
 
 model Contestant {
@@ -82,6 +88,7 @@ model Match {
   winnerId      String?
   winner        Contestant? @relation("Winner", fields: [winnerId], references: [id])
   position      Int
+  resolvedAt    DateTime?
   votes         Vote[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -98,4 +105,25 @@ model Vote {
   createdAt     DateTime    @default(now())
 
   @@unique([matchId, participantId])
+}
+
+model TournamentAdmin {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([tournamentId, userId])
+}
+
+model TournamentViewer {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  email        String
+  createdAt    DateTime   @default(now())
+
+  @@unique([tournamentId, email])
 }
