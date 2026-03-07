@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     // For each round 1 match, determine if it's a BYE and who advances
     type Round1Match = { position: number; c1Id: string | null; c2Id: string | null; winnerId: string | null };
-    const round1Matches: Round1Match[] = matchupIndices.map(([s1, s2], position) => {
+    const rawRound1: Round1Match[] = matchupIndices.map(([s1, s2], position) => {
       const c1Id = sortedContestants[s1 - 1]?.id ?? null;
       const c2Id = sortedContestants[s2 - 1]?.id ?? null;
       let winnerId: string | null = null;
@@ -93,6 +93,28 @@ export async function POST(req: NextRequest) {
       else if (c2Id && !c1Id) winnerId = c2Id;
       return { position, c1Id, c2Id, winnerId };
     });
+
+    // Reorder so real matches appear at the top of the bracket (lower positions)
+    // and BYE matches at the bottom. Must keep pairs [2k, 2k+1] together since
+    // both feed into the same round 2 slot.
+    const pairs: [Round1Match, Round1Match][] = [];
+    for (let i = 0; i < rawRound1.length; i += 2) {
+      pairs.push([rawRound1[i], rawRound1[i + 1]]);
+    }
+    // Sort pairs: most real matches (winnerId===null) first
+    pairs.sort((a, b) => {
+      const realA = a.filter((m) => m.winnerId === null).length;
+      const realB = b.filter((m) => m.winnerId === null).length;
+      return realB - realA;
+    });
+    // Within each pair, put real match first
+    for (const pair of pairs) {
+      if (pair[0].winnerId !== null && pair[1].winnerId === null) {
+        [pair[0], pair[1]] = [pair[1], pair[0]];
+      }
+    }
+    // Flatten and assign final positions
+    const round1Matches: Round1Match[] = pairs.flat().map((m, i) => ({ ...m, position: i }));
 
     // Pre-compute round 2 contestant slots from BYE winners
     // Position P in round 1 → round 2 slot floor(P/2); even P → contestant1, odd P → contestant2
