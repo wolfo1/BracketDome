@@ -11,7 +11,7 @@ async function getTournament(id: string): Promise<TournamentData | null> {
     const t = await prisma.tournament.findUnique({
       where: { id },
       include: {
-        contestants: { orderBy: { seed: "asc" } },
+        contestants: { orderBy: { seed: "asc" }, include: { links: true } },
         participants: { orderBy: { createdAt: "asc" } },
         admins: { include: { user: { select: { id: true, email: true, name: true } } } },
         viewers: true,
@@ -21,9 +21,9 @@ async function getTournament(id: string): Promise<TournamentData | null> {
             matches: {
               orderBy: { position: "asc" },
               include: {
-                contestant1: true,
-                contestant2: true,
-                winner: true,
+                contestant1: { include: { links: true } },
+                contestant2: { include: { links: true } },
+                winner: { include: { links: true } },
                 votes: { include: { participant: true, votedFor: true } },
               },
             },
@@ -41,7 +41,7 @@ async function getTournament(id: string): Promise<TournamentData | null> {
       startDate: t.startDate?.toISOString() ?? null,
       maxParticipants: t.maxParticipants,
       createdBy: t.createdBy,
-      contestants: t.contestants,
+      contestants: t.contestants.map((c) => ({ ...c, links: c.links.map((l) => ({ id: l.id, url: l.url })) })),
       participants: t.participants,
       admins: t.admins.map((a) => ({ userId: a.user.id, email: a.user.email, name: a.user.name })),
       viewers: t.viewers.map((v) => ({ id: v.id, email: v.email })),
@@ -52,9 +52,9 @@ async function getTournament(id: string): Promise<TournamentData | null> {
         matches: r.matches.map((m) => ({
           id: m.id,
           position: m.position,
-          contestant1: m.contestant1,
-          contestant2: m.contestant2,
-          winner: m.winner,
+          contestant1: m.contestant1 ? { ...m.contestant1, links: m.contestant1.links.map((l) => ({ id: l.id, url: l.url })) } : null,
+          contestant2: m.contestant2 ? { ...m.contestant2, links: m.contestant2.links.map((l) => ({ id: l.id, url: l.url })) } : null,
+          winner: m.winner ? { ...m.winner, links: m.winner.links.map((l) => ({ id: l.id, url: l.url })) } : null,
           resolvedAt: m.resolvedAt?.toISOString() ?? null,
           votes: m.votes.map((v) => ({
             participantId: v.participantId,

@@ -10,10 +10,16 @@ export interface TournamentSummary {
   participantCount: number;
 }
 
+export interface ContestantLink {
+  id: string;
+  url: string;
+}
+
 export interface ContestantData {
   id: string;
   name: string;
   seed: number;
+  links: ContestantLink[];
 }
 
 export interface ParticipantData {

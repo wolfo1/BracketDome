@@ -24,9 +24,9 @@ async function fetchTournament(id: string) {
             matches: {
               orderBy: { position: "asc" },
               include: {
-                contestant1: true,
-                contestant2: true,
-                winner: true,
+                contestant1: { include: { links: true } },
+                contestant2: { include: { links: true } },
+                winner: { include: { links: true } },
                 votes: { include: { participant: true, votedFor: true } },
               },
             },
@@ -102,9 +102,9 @@ export default async function StatsPage({ params }: StatsPageProps) {
     matches: round.matches.map((match) => ({
       id: match.id,
       position: match.position,
-      contestant1: match.contestant1,
-      contestant2: match.contestant2,
-      winner: match.winner,
+      contestant1: match.contestant1 ? { ...match.contestant1, links: match.contestant1.links.map((l) => ({ id: l.id, url: l.url })) } : null,
+      contestant2: match.contestant2 ? { ...match.contestant2, links: match.contestant2.links.map((l) => ({ id: l.id, url: l.url })) } : null,
+      winner: match.winner ? { ...match.winner, links: match.winner.links.map((l) => ({ id: l.id, url: l.url })) } : null,
       resolvedAt: match.resolvedAt?.toISOString() ?? null,
       votes: match.votes.map((vote) => ({
         participantId: vote.participantId,

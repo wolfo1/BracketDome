@@ -46,15 +46,24 @@ model Tournament {
 }
 
 model Contestant {
-  id           String     @id @default(cuid())
+  id           String           @id @default(cuid())
   name         String
   seed         Int
   tournamentId String
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  links        ContestantLink[]
   votes        Vote[]
-  matchesAs1   Match[]    @relation("Contestant1")
-  matchesAs2   Match[]    @relation("Contestant2")
-  wonMatches   Match[]    @relation("Winner")
+  matchesAs1   Match[]          @relation("Contestant1")
+  matchesAs2   Match[]          @relation("Contestant2")
+  wonMatches   Match[]          @relation("Winner")
+  createdAt    DateTime         @default(now())
+}
+
+model ContestantLink {
+  id           String     @id @default(cuid())
+  url          String
+  contestantId String
+  contestant   Contestant @relation(fields: [contestantId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
 }
 

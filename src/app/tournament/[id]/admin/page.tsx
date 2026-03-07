@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { TournamentData, MatchData, RoundData, ParticipantData, ContestantData, AdminData, ViewerData } from "@/types/index";
+import { TournamentData, MatchData, RoundData, ParticipantData, ContestantData, AdminData, ViewerData, ContestantLink } from "@/types/index";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +146,111 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
           {saving ? "Saving…" : "Save Results"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─── Contestant links panel ───────────────────────────────────────────────────
+
+function detectPlatformLabel(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace("www.", "");
+    if (host.includes("youtube.com") || host.includes("youtu.be")) return "YouTube";
+    if (host.includes("spotify.com")) return "Spotify";
+    if (host.includes("music.apple.com")) return "Apple Music";
+  } catch {}
+  return url.length > 40 ? url.slice(0, 40) + "…" : url;
+}
+
+function ContestantLinksPanel({ tournamentId, contestants, onRefresh }: {
+  tournamentId: string;
+  contestants: ContestantData[];
+  onRefresh: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [adding, setAdding] = useState<string | null>(null);
+
+  async function handleAdd(contestantId: string) {
+    const url = inputs[contestantId]?.trim();
+    if (!url) return;
+    setAdding(contestantId);
+    try {
+      const res = await fetch(`/api/tournament/${tournamentId}/contestant/${contestantId}/links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to add link."); return; }
+      setInputs((prev) => ({ ...prev, [contestantId]: "" }));
+      onRefresh();
+    } catch {
+      toast.error("Something went wrong.");
+    } finally {
+      setAdding(null);
+    }
+  }
+
+  async function handleRemove(contestantId: string, linkId: string) {
+    try {
+      const res = await fetch(`/api/tournament/${tournamentId}/contestant/${contestantId}/links`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkId }),
+      });
+      if (!res.ok) { toast.error("Failed to remove link."); return; }
+      onRefresh();
+    } catch {
+      toast.error("Something went wrong.");
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-300 hover:text-white transition-colors"
+      >
+        <span>Contestant Links</span>
+        <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 flex flex-col gap-4 border-t border-gray-800 pt-3">
+          {contestants.map((c) => (
+            <div key={c.id} className="flex flex-col gap-2">
+              <span className="text-xs font-semibold text-gray-400">{c.name}</span>
+              {c.links.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  {c.links.map((link: ContestantLink) => (
+                    <div key={link.id} className="flex items-center justify-between rounded-lg bg-gray-800/50 px-3 py-1.5">
+                      <span className="text-xs text-gray-300">{detectPlatformLabel(link.url)}</span>
+                      <button onClick={() => handleRemove(c.id, link.id)} className="text-xs text-red-500 hover:text-red-400 ml-2 shrink-0">Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={inputs[c.id] ?? ""}
+                  onChange={(e) => setInputs((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdd(c.id)}
+                  placeholder="YouTube / Spotify / Apple Music URL"
+                  className="h-7 text-xs bg-gray-800 border-gray-700"
+                />
+                <Button
+                  onClick={() => handleAdd(c.id)}
+                  disabled={adding === c.id || !inputs[c.id]?.trim()}
+                  className="h-7 px-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 shrink-0"
+                >
+                  {adding === c.id ? "…" : "Add"}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -603,6 +708,7 @@ export default function AdminPage() {
         {/* ── Management panels ─────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <EditTournamentPanel tournament={tournament} onSaved={fetchTournament} />
+          <ContestantLinksPanel tournamentId={id} contestants={tournament.contestants} onRefresh={fetchTournament} />
           <AddParticipantPanel
             tournamentId={id}
             participantCount={tournament.participants.length}
