@@ -94,7 +94,7 @@ model Vote {
   participantId String
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   votedForId    String
-  votedFor      Contestant  @relation(fields: [votedForId], references: [id])
+  votedFor      Contestant  @relation(fields: [votedForId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
 
   @@unique([matchId, participantId])
