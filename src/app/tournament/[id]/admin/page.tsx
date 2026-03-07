@@ -141,13 +141,13 @@ function MatchFormCard({
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-5 shadow-lg flex flex-col gap-4">
       {/* Match header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-bold text-white">
-          <span className="truncate max-w-[10rem]">{contestant1.name}</span>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 text-sm font-bold text-white min-w-0">
+          <span className="truncate">{contestant1.name}</span>
           <span className="text-gray-500 font-normal shrink-0">vs</span>
-          <span className="truncate max-w-[10rem]">{contestant2.name}</span>
+          <span className="truncate">{contestant2.name}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500 shrink-0">
+        <div className="flex items-center gap-2 text-xs text-gray-500">
           {pendingCount > 0 && (
             <span className="text-amber-500">{pendingCount} pending</span>
           )}
