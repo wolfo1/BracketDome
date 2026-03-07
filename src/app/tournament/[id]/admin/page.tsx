@@ -150,6 +150,103 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
   );
 }
 
+// ─── Edit tournament panel ────────────────────────────────────────────────────
+
+function EditTournamentPanel({ tournament, onSaved }: {
+  tournament: TournamentData;
+  onSaved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(tournament.title);
+  const [description, setDescription] = useState(tournament.description ?? "");
+  const [startDate, setStartDate] = useState(
+    tournament.startDate ? new Date(tournament.startDate).toISOString().split("T")[0] : ""
+  );
+  const [isPrivate, setIsPrivate] = useState(tournament.isPrivate);
+  const [saving, setSaving] = useState(false);
+
+  // Reset fields when tournament changes
+  useEffect(() => {
+    setTitle(tournament.title);
+    setDescription(tournament.description ?? "");
+    setStartDate(tournament.startDate ? new Date(tournament.startDate).toISOString().split("T")[0] : "");
+    setIsPrivate(tournament.isPrivate);
+  }, [tournament]);
+
+  async function handleSave() {
+    if (!title.trim()) { toast.error("Title is required."); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/tournament/${tournament.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), description: description.trim(), startDate: startDate || null, isPrivate }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to save."); return; }
+      toast.success("Tournament updated.");
+      setOpen(false);
+      onSaved();
+    } catch {
+      toast.error("Something went wrong.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-300 hover:text-white transition-colors"
+      >
+        <span>Edit Tournament Details</span>
+        <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 flex flex-col gap-3 border-t border-gray-800 pt-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-500">Title</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-8 text-sm bg-gray-800 border-gray-700" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-500">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-600 outline-none resize-none focus:border-indigo-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-500">Start Date</label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm bg-gray-800 border-gray-700" />
+          </div>
+          <label className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/40 px-3 py-2 cursor-pointer">
+            <span className="text-sm text-gray-300">Private tournament</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isPrivate}
+              onClick={() => setIsPrivate((v) => !v)}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${isPrivate ? "bg-indigo-600" : "bg-gray-700"}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${isPrivate ? "translate-x-4" : "translate-x-0"}`} />
+            </button>
+          </label>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button onClick={() => setOpen(false)} className="h-8 px-3 text-xs bg-gray-700 hover:bg-gray-600">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-500">
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Admin management panel ───────────────────────────────────────────────────
 
 function AdminsPanel({ tournamentId, admins, isCreator, onRefresh }: {
@@ -505,6 +602,7 @@ export default function AdminPage() {
 
         {/* ── Management panels ─────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
+          <EditTournamentPanel tournament={tournament} onSaved={fetchTournament} />
           <AddParticipantPanel
             tournamentId={id}
             participantCount={tournament.participants.length}

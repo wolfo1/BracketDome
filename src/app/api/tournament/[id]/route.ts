@@ -68,6 +68,38 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id } = await params;
+    if (!await isTournamentAdmin(id, session.user.id)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { title, description, startDate, isPrivate } = await req.json();
+
+    const updated = await prisma.tournament.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description: description || null }),
+        ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
+        ...(isPrivate !== undefined && { isPrivate }),
+      },
+    });
+
+    return NextResponse.json({ id: updated.id });
+  } catch (err) {
+    console.error("[PATCH /api/tournament/[id]]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

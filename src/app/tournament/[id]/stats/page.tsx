@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { computeStats } from "@/lib/stats";
 import { AwardCard } from "@/components/stats/AwardCard";
 import { IndividualScoresChart } from "@/components/stats/IndividualScoresChart";
@@ -6,6 +7,8 @@ import { CorrelationHeatmap } from "@/components/stats/CorrelationHeatmap";
 import { RoundBreakdownChart } from "@/components/stats/RoundBreakdownChart";
 import { RoundData } from "@/types";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { isTournamentAdmin } from "@/lib/tournamentAuth";
 
 async function fetchTournament(id: string) {
   try {
@@ -14,6 +17,7 @@ async function fetchTournament(id: string) {
       include: {
         contestants: true,
         participants: true,
+        viewers: { select: { email: true } },
         rounds: {
           orderBy: { number: "asc" },
           include: {
@@ -46,6 +50,15 @@ interface StatsPageProps {
 export default async function StatsPage({ params }: StatsPageProps) {
   const { id } = await params;
   const tournament = await fetchTournament(id);
+
+  if (tournament?.isPrivate) {
+    const session = await auth();
+    const userId = session?.user?.id;
+    const userEmail = session?.user?.email;
+    const adminAccess = userId && await isTournamentAdmin(id, userId);
+    const viewerAccess = userEmail && tournament.viewers.some((v: { email: string }) => v.email === userEmail);
+    if (!adminAccess && !viewerAccess) redirect("/login");
+  }
 
   if (!tournament) {
     return (

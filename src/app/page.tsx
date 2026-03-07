@@ -3,21 +3,32 @@ import { auth, signOut } from "@/lib/auth";
 import { TournamentSummary, TournamentStatus } from "@/types";
 import { prisma } from "@/lib/prisma";
 
-async function getTournaments(): Promise<TournamentSummary[]> {
+async function getTournaments(userId?: string, userEmail?: string): Promise<TournamentSummary[]> {
   try {
     const tournaments = await prisma.tournament.findMany({
       orderBy: { createdAt: "desc" },
-      include: { _count: { select: { contestants: true, participants: true } } },
+      include: {
+        _count: { select: { contestants: true, participants: true } },
+        admins: { select: { userId: true } },
+        viewers: { select: { email: true } },
+      },
     });
-    return tournaments.map((t) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description,
-      status: t.status as TournamentSummary["status"],
-      createdAt: t.createdAt.toISOString(),
-      contestantCount: t._count.contestants,
-      participantCount: t._count.participants,
-    }));
+    return tournaments
+      .filter((t) => {
+        if (!t.isPrivate) return true;
+        if (userId && (t.createdBy === userId || t.admins.some((a) => a.userId === userId))) return true;
+        if (userEmail && t.viewers.some((v) => v.email === userEmail)) return true;
+        return false;
+      })
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status as TournamentSummary["status"],
+        createdAt: t.createdAt.toISOString(),
+        contestantCount: t._count.contestants,
+        participantCount: t._count.participants,
+      }));
   } catch {
     return [];
   }
@@ -98,10 +109,8 @@ function EmptyState() {
 }
 
 export default async function HomePage() {
-  const [session, tournaments] = await Promise.all([
-    auth(),
-    getTournaments(),
-  ]);
+  const session = await auth();
+  const tournaments = await getTournaments(session?.user?.id ?? undefined, session?.user?.email ?? undefined);
 
   const isLoggedIn = !!session?.user;
 
