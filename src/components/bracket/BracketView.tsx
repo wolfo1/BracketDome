@@ -169,8 +169,16 @@ function MatchDetailSheet({ match, round, open, onClose }: MatchDetailSheetProps
         className="bg-gray-900 border-gray-700 text-white w-full max-w-md px-6"
       >
         <SheetHeader>
-          <SheetTitle className="text-white text-lg">{title}</SheetTitle>
-          <p className="text-sm" style={{ color: roundColor }}>
+          {c1 && c2 ? (
+            <div className="flex flex-col items-center gap-1 text-center">
+              <SheetTitle className="text-white text-xl font-black leading-tight">{c1.name}</SheetTitle>
+              <span className="text-6xl font-black tracking-widest bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent py-2">VS</span>
+              <span className="text-white text-xl font-black leading-tight">{c2.name}</span>
+            </div>
+          ) : (
+            <SheetTitle className="text-white text-lg">{title}</SheetTitle>
+          )}
+          <p className="text-sm text-center mt-1" style={{ color: roundColor }}>
             {round.name}
           </p>
         </SheetHeader>
