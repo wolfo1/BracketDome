@@ -52,78 +52,57 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const tournament = await prisma.$transaction(async (tx) => {
-      const t = await tx.tournament.create({
-        data: {
-          title,
-          description,
-          createdBy: session.user!.id!,
-          status: "ACTIVE",
-        },
+    // 1 query: create tournament
+    const t = await prisma.tournament.create({
+      data: { title, description, createdBy: session.user!.id!, status: "ACTIVE" },
+    });
+
+    // 1 query: bulk-create contestants, get IDs back
+    const createdContestants = await prisma.contestant.createManyAndReturn({
+      data: seededContestants.map((c) => ({
+        name: c.name, seed: c.seed, tournamentId: t.id,
+      })),
+    });
+    const sortedContestants = [...createdContestants].sort((a, b) => a.seed - b.seed);
+
+    // 1 query: bulk-create participants
+    await prisma.participant.createMany({
+      data: (participants as string[]).map((name) => ({ name, tournamentId: t.id })),
+    });
+
+    // For each round: 1 query to create round + 1 query to bulk-create its matches
+    const matchupIndices = generateFirstRoundMatchups(
+      Array.from({ length: bracketSize }, (_, i) => i + 1)
+    );
+
+    for (let i = 0; i < rounds.length; i++) {
+      const r = rounds[i];
+      const createdRound = await prisma.round.create({
+        data: { number: r.number, name: r.name, tournamentId: t.id },
       });
 
-      const createdContestants = await Promise.all(
-        seededContestants.map((c) =>
-          tx.contestant.create({
-            data: { name: c.name, seed: c.seed, tournamentId: t.id },
-          })
-        )
-      );
-
-      const sortedContestants = [...createdContestants].sort(
-        (a, b) => a.seed - b.seed
-      );
-
-      await Promise.all(
-        (participants as string[]).map((name) =>
-          tx.participant.create({ data: { name, tournamentId: t.id } })
-        )
-      );
-
-      const firstRound = rounds[0];
-      const round = await tx.round.create({
-        data: {
-          number: firstRound.number,
-          name: firstRound.name,
-          tournamentId: t.id,
-        },
-      });
-
-      const matchupIndices = generateFirstRoundMatchups(
-        Array.from({ length: bracketSize }, (_, i) => i + 1)
-      );
-
-      await Promise.all(
-        matchupIndices.map(([s1, s2], position) => {
-          const c1 = sortedContestants[s1 - 1] ?? null;
-          const c2 = sortedContestants[s2 - 1] ?? null;
-          return tx.match.create({
-            data: {
-              roundId: round.id,
-              contestant1Id: c1?.id ?? null,
-              contestant2Id: c2?.id ?? null,
-              position,
-            },
-          });
-        })
-      );
-
-      for (let i = 1; i < rounds.length; i++) {
-        const r = rounds[i];
-        const createdRound = await tx.round.create({
-          data: { number: r.number, name: r.name, tournamentId: t.id },
+      if (i === 0) {
+        // First round: seeded matchups with contestant IDs
+        await prisma.match.createMany({
+          data: matchupIndices.map(([s1, s2], position) => ({
+            roundId: createdRound.id,
+            contestant1Id: sortedContestants[s1 - 1]?.id ?? null,
+            contestant2Id: sortedContestants[s2 - 1]?.id ?? null,
+            position,
+          })),
         });
-        for (let pos = 0; pos < r.matchCount; pos++) {
-          await tx.match.create({
-            data: { roundId: createdRound.id, position: pos },
-          });
-        }
+      } else {
+        // Later rounds: empty slots
+        await prisma.match.createMany({
+          data: Array.from({ length: r.matchCount }, (_, pos) => ({
+            roundId: createdRound.id,
+            position: pos,
+          })),
+        });
       }
+    }
 
-      return t;
-    }, { timeout: 20000 });
-
-    return NextResponse.json({ id: tournament.id }, { status: 201 });
+    return NextResponse.json({ id: t.id }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/tournament]", err);
     return NextResponse.json(
