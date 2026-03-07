@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -231,8 +231,29 @@ function MatchFormCard({
 
 export default function AdminPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [tournament, setTournament] = useState<TournamentData | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!confirm(`Delete "${tournament?.title}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/tournament/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to delete tournament.");
+        return;
+      }
+      toast.success("Tournament deleted.");
+      router.push("/");
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const fetchTournament = useCallback(async () => {
     try {
@@ -357,11 +378,20 @@ export default function AdminPage() {
               Admin
             </span>
           </div>
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide border ${getStatusColor(tournament.status)}`}
-          >
-            {tournament.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide border ${getStatusColor(tournament.status)}`}
+            >
+              {tournament.status}
+            </span>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="h-7 px-3 text-xs bg-red-900/40 hover:bg-red-800/60 text-red-400 hover:text-red-300 border border-red-800/50 disabled:opacity-50"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
         </div>
       </header>
 

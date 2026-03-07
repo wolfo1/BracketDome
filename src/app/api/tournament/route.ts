@@ -70,10 +70,34 @@ export async function POST(req: NextRequest) {
       data: (participants as string[]).map((name) => ({ name, tournamentId: t.id })),
     });
 
-    // For each round: 1 query to create round + 1 query to bulk-create its matches
+    // Pre-compute round 1 matchups and BYE winners
     const matchupIndices = generateFirstRoundMatchups(
       Array.from({ length: bracketSize }, (_, i) => i + 1)
     );
+
+    // For each round 1 match, determine if it's a BYE and who advances
+    type Round1Match = { position: number; c1Id: string | null; c2Id: string | null; winnerId: string | null };
+    const round1Matches: Round1Match[] = matchupIndices.map(([s1, s2], position) => {
+      const c1Id = sortedContestants[s1 - 1]?.id ?? null;
+      const c2Id = sortedContestants[s2 - 1]?.id ?? null;
+      let winnerId: string | null = null;
+      if (c1Id && !c2Id) winnerId = c1Id;
+      else if (c2Id && !c1Id) winnerId = c2Id;
+      return { position, c1Id, c2Id, winnerId };
+    });
+
+    // Pre-compute round 2 contestant slots from BYE winners
+    // Position P in round 1 → round 2 slot floor(P/2); even P → contestant1, odd P → contestant2
+    const round2Prefill = new Map<number, { contestant1Id?: string; contestant2Id?: string }>();
+    for (const m of round1Matches) {
+      if (m.winnerId) {
+        const r2pos = Math.floor(m.position / 2);
+        const entry = round2Prefill.get(r2pos) ?? {};
+        if (m.position % 2 === 0) entry.contestant1Id = m.winnerId;
+        else entry.contestant2Id = m.winnerId;
+        round2Prefill.set(r2pos, entry);
+      }
+    }
 
     for (let i = 0; i < rounds.length; i++) {
       const r = rounds[i];
@@ -82,14 +106,27 @@ export async function POST(req: NextRequest) {
       });
 
       if (i === 0) {
-        // First round: seeded matchups with contestant IDs
         await prisma.match.createMany({
-          data: matchupIndices.map(([s1, s2], position) => ({
+          data: round1Matches.map((m) => ({
             roundId: createdRound.id,
-            contestant1Id: sortedContestants[s1 - 1]?.id ?? null,
-            contestant2Id: sortedContestants[s2 - 1]?.id ?? null,
-            position,
+            contestant1Id: m.c1Id,
+            contestant2Id: m.c2Id,
+            winnerId: m.winnerId,
+            position: m.position,
           })),
+        });
+      } else if (i === 1) {
+        // Round 2: pre-fill slots where BYE winners already advanced
+        await prisma.match.createMany({
+          data: Array.from({ length: r.matchCount }, (_, pos) => {
+            const prefill = round2Prefill.get(pos);
+            return {
+              roundId: createdRound.id,
+              position: pos,
+              contestant1Id: prefill?.contestant1Id ?? null,
+              contestant2Id: prefill?.contestant2Id ?? null,
+            };
+          }),
         });
       } else {
         // Later rounds: empty slots
