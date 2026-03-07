@@ -34,6 +34,7 @@ export interface MatchData {
   contestant1: ContestantData | null;
   contestant2: ContestantData | null;
   winner: ContestantData | null;
+  resolvedAt: string | null;
   votes: VoteData[];
 }
 
@@ -44,12 +45,29 @@ export interface RoundData {
   matches: MatchData[];
 }
 
+export interface AdminData {
+  userId: string;
+  email: string;
+  name: string;
+}
+
+export interface ViewerData {
+  id: string;
+  email: string;
+}
+
 export interface TournamentData {
   id: string;
   title: string;
   description: string | null;
   status: TournamentStatus;
+  isPrivate: boolean;
+  startDate: string | null;
+  maxParticipants: number;
+  createdBy: string;
   contestants: ContestantData[];
   participants: ParticipantData[];
   rounds: RoundData[];
+  admins: AdminData[];
+  viewers: ViewerData[];
 }

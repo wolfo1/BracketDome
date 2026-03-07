@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isTournamentAdmin } from "@/lib/tournamentAuth";
 
 interface VoteInput {
   participantId: string;
@@ -17,7 +18,12 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { matchId } = await params;
+    const { id: tournamentId, matchId } = await params;
+
+    if (!await isTournamentAdmin(tournamentId, session.user.id!)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { votes, winnerId }: { votes: VoteInput[]; winnerId: string } =
       await req.json();
 
@@ -56,7 +62,7 @@ export async function POST(
         });
       }
 
-      await tx.match.update({ where: { id: matchId }, data: { winnerId } });
+      await tx.match.update({ where: { id: matchId }, data: { winnerId, resolvedAt: new Date() } });
 
       const currentRound = match.round;
       const tournament = currentRound.tournament;

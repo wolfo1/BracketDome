@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, description, contestants, participants } = body;
+    const { title, description, contestants, participants, isPrivate, startDate, maxParticipants } = body;
 
     if (!title || !contestants?.length || !participants?.length) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -54,7 +54,15 @@ export async function POST(req: NextRequest) {
 
     // 1 query: create tournament
     const t = await prisma.tournament.create({
-      data: { title, description, createdBy: session.user!.id!, status: "ACTIVE" },
+      data: {
+        title,
+        description,
+        createdBy: session.user!.id!,
+        status: "ACTIVE",
+        isPrivate: isPrivate ?? false,
+        startDate: startDate ? new Date(startDate) : null,
+        maxParticipants: maxParticipants ?? 50,
+      },
     });
 
     // 1 query: bulk-create contestants, get IDs back

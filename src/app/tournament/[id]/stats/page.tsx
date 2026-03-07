@@ -92,6 +92,7 @@ export default async function StatsPage({ params }: StatsPageProps) {
       contestant1: match.contestant1,
       contestant2: match.contestant2,
       winner: match.winner,
+      resolvedAt: match.resolvedAt?.toISOString() ?? null,
       votes: match.votes.map((vote) => ({
         participantId: vote.participantId,
         participantName: vote.participant.name,

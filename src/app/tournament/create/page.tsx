@@ -95,6 +95,8 @@ export default function CreateTournamentPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [startDate, setStartDate] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [participantInput, setParticipantInput] = useState("");
   const [contestants, setContestants] = useState<
@@ -247,6 +249,8 @@ export default function CreateTournamentPage() {
           description: description.trim() || null,
           contestants,
           participants,
+          isPrivate,
+          startDate: startDate || null,
         }),
       });
       const data = await res.json();
@@ -339,6 +343,37 @@ export default function CreateTournamentPage() {
                     className="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-4 py-2.5 text-sm text-white placeholder:text-gray-600 outline-none transition resize-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
+
+                {/* Start date */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="startDate" className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    Start Date <span className="normal-case font-normal text-gray-600">(optional)</span>
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-gray-800/60 border-gray-700 text-white focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                  />
+                </div>
+
+                {/* Private toggle */}
+                <label className="flex items-center justify-between rounded-xl border border-gray-700 bg-gray-800/40 px-4 py-3 cursor-pointer">
+                  <div>
+                    <span className="text-sm font-semibold text-white">Private tournament</span>
+                    <p className="text-xs text-gray-500 mt-0.5">Only people you invite can view this tournament</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isPrivate}
+                    onClick={() => setIsPrivate((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline-none ${isPrivate ? "bg-indigo-600" : "bg-gray-700"}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform ${isPrivate ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </label>
               </div>
             </div>
 

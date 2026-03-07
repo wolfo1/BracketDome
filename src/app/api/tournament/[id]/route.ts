@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isTournamentAdmin } from "@/lib/tournamentAuth";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -14,6 +15,8 @@ export async function GET(
       include: {
         contestants: { orderBy: { seed: "asc" } },
         participants: { orderBy: { createdAt: "asc" } },
+        admins: { include: { user: { select: { id: true, email: true, name: true } } } },
+        viewers: true,
         rounds: {
           orderBy: { number: "asc" },
           include: {
@@ -35,7 +38,27 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json(tournament);
+    // Private tournament: only creator, admins, and viewers can see it
+    if (tournament.isPrivate) {
+      const session = await auth();
+      const userId = session?.user?.id;
+      const userEmail = session?.user?.email;
+      const isAdmin = userId && await isTournamentAdmin(id, userId);
+      const isViewer = userEmail && tournament.viewers.some((v) => v.email === userEmail);
+      if (!isAdmin && !isViewer) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    return NextResponse.json({
+      ...tournament,
+      admins: tournament.admins.map((a) => ({
+        userId: a.user.id,
+        email: a.user.email,
+        name: a.user.name,
+      })),
+      viewers: tournament.viewers.map((v) => ({ id: v.id, email: v.email })),
+    });
   } catch (err) {
     console.error("[GET /api/tournament/[id]]", err);
     return NextResponse.json(
@@ -57,6 +80,7 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Only the creator can delete (not just admins)
     const tournament = await prisma.tournament.findUnique({ where: { id } });
     if (!tournament) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
