@@ -166,7 +166,7 @@ function MatchDetailSheet({ match, round, open, onClose }: MatchDetailSheetProps
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
-        className="bg-gray-900 border-gray-700 text-white w-full max-w-md"
+        className="bg-gray-900 border-gray-700 text-white w-full max-w-md px-6"
       >
         <SheetHeader>
           <SheetTitle className="text-white text-lg">{title}</SheetTitle>
