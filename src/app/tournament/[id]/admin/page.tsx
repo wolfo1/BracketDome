@@ -190,7 +190,8 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
     for (const v of match.votes) initial[v.participantId] = v.votedForId;
     return initial;
   });
-  const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { contestant1, contestant2 } = match;
 
   useEffect(() => {
@@ -203,12 +204,34 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
     setVotes((prev) => ({ ...prev, [participantId]: votedForId }));
   }
 
-  async function handleSave() {
+  async function handleSaveDraft() {
+    const voteEntries = Object.entries(votes).map(([participantId, votedForId]) => ({ participantId, votedForId }));
+    if (voteEntries.length === 0) { toast.error("No votes to save."); return; }
+    setSavingDraft(true);
+    try {
+      const res = await fetch(`/api/tournament/${tournamentId}/match/${match.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ votes: voteEntries }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to save votes."); return; }
+      const voteCount = voteEntries.length;
+      toast.success(`Votes saved (${voteCount}/${participants.length} voted)`);
+      onSaved();
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function handleSubmit() {
     const winnerId = computeWinnerId(votes, contestant1, contestant2);
     if (!winnerId) { toast.error("No votes have been cast — cannot determine a winner."); return; }
     const voteEntries = Object.entries(votes).map(([participantId, votedForId]) => ({ participantId, votedForId }));
     if (voteEntries.length === 0) { toast.error("No votes recorded for this match."); return; }
-    setSaving(true);
+    setSubmitting(true);
     try {
       const res = await fetch(`/api/tournament/${tournamentId}/match/${match.id}`, {
         method: "POST",
@@ -217,12 +240,12 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Failed to save match result."); return; }
-      toast.success("Match result saved!");
+      toast.success("Match result submitted!");
       onSaved();
     } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   }
 
@@ -281,9 +304,12 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
         </div>
       )}
 
-      <div className="flex justify-end pt-1">
-        <Button onClick={handleSave} disabled={saving || voteCount === 0} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 disabled:opacity-50 disabled:cursor-not-allowed">
-          {saving ? "Saving…" : "Save Results"}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button onClick={handleSaveDraft} disabled={savingDraft || submitting || voteCount === 0} variant="outline" className="text-gray-300 border-gray-600 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
+          {savingDraft ? "Saving…" : "Save Draft"}
+        </Button>
+        <Button onClick={handleSubmit} disabled={submitting || savingDraft || voteCount === 0} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 disabled:opacity-50 disabled:cursor-not-allowed">
+          {submitting ? "Submitting…" : "Submit Results"}
         </Button>
       </div>
     </div>

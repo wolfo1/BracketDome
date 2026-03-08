@@ -24,13 +24,32 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { votes, winnerId }: { votes: VoteInput[]; winnerId: string } =
+    const { votes, winnerId }: { votes: VoteInput[]; winnerId?: string } =
       await req.json();
 
-    if (!winnerId || !votes?.length) {
-      return NextResponse.json({ error: "Missing votes or winner" }, { status: 400 });
+    if (!votes?.length) {
+      return NextResponse.json({ error: "Missing votes" }, { status: 400 });
     }
 
+    // Draft save: persist votes without resolving the match
+    if (!winnerId) {
+      const matchExists = await prisma.match.findUnique({ where: { id: matchId }, select: { id: true } });
+      if (!matchExists) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+
+      await prisma.$transaction(async (tx) => {
+        for (const vote of votes) {
+          await tx.vote.upsert({
+            where: { matchId_participantId: { matchId, participantId: vote.participantId } },
+            create: { matchId, participantId: vote.participantId, votedForId: vote.votedForId },
+            update: { votedForId: vote.votedForId },
+          });
+        }
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    // Full submission: resolve match and advance winner
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
