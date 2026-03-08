@@ -341,8 +341,8 @@ function computeAwards(
     });
   }
 
-  // 👑 True Believer (rare) — voted for the tournament champion in every match they voted in
-  if (matches.length > 0) {
+  // 👑 True Believer (rare) — only awarded when bracket is fully complete
+  if (bracketComplete && matches.length > 0) {
     const resolvedMatches = matches.filter((m) => m.winnerId !== null);
     const finalMatch = resolvedMatches.sort((a, b) => b.roundNumber - a.roundNumber)[0];
     if (finalMatch?.winnerId) {
