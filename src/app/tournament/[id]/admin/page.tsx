@@ -297,12 +297,15 @@ function MatchFormCard({ match, participants, tournamentId, onSaved }: MatchForm
         })}
       </div>
 
-      {winner && (
-        <div className="flex items-center gap-2 rounded-lg bg-indigo-900/30 border border-indigo-700/40 px-3 py-2 text-sm">
-          <span className="text-indigo-400 font-semibold">Projected winner:</span>
-          <span className="text-white font-bold">{winner.name}</span>
-        </div>
-      )}
+      {winner && (() => {
+        const isC1 = winner.id === contestant1.id;
+        return (
+          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm border ${isC1 ? "bg-indigo-900/30 border-indigo-700/40" : "bg-pink-900/30 border-pink-700/40"}`}>
+            <span className={`font-semibold ${isC1 ? "text-indigo-400" : "text-pink-400"}`}>Projected winner:</span>
+            <span className="text-white font-bold">{winner.name}</span>
+          </div>
+        );
+      })()}
 
       <div className="flex justify-end gap-2 pt-1">
         <Button onClick={handleSaveDraft} disabled={savingDraft || submitting || voteCount === 0} variant="outline" className="text-gray-300 border-gray-600 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
