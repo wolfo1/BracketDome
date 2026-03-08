@@ -71,31 +71,33 @@ export function AwardCard({ award }: AwardCardProps) {
         className={`rounded-2xl p-px bg-gradient-to-br ${preset.border} shadow-lg`}
       >
         <div
-          className={`rounded-2xl bg-gradient-to-br ${preset.bg} backdrop-blur-sm bg-gray-900/80 p-4 flex flex-col gap-2`}
+          className={`rounded-2xl bg-gradient-to-br ${preset.bg} backdrop-blur-sm bg-gray-900/80 px-3 py-2.5 flex items-start gap-2.5`}
         >
           {/* Emoji */}
-          <div className="text-4xl leading-none select-none">{award.emoji}</div>
+          <div className="text-2xl leading-none select-none shrink-0 mt-0.5">{award.emoji}</div>
 
-          {/* Title */}
-          <h3 className={`text-sm font-bold tracking-wide ${preset.title}`}>
-            {award.title}
-          </h3>
+          <div className="flex flex-col gap-1 min-w-0">
+            {/* Title */}
+            <h3 className={`text-xs font-bold tracking-wide ${preset.title}`}>
+              {award.title}
+            </h3>
 
-          {/* Description */}
-          <p className="text-xs text-gray-400 leading-relaxed">
-            {award.description}
-          </p>
+            {/* Description */}
+            <p className="text-xs text-gray-400 leading-relaxed">
+              {award.description}
+            </p>
 
-          {/* Participants */}
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            {award.participantNames.map((name, i) => (
-              <span
-                key={i}
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-gradient-to-r ${preset.border} text-white shadow-sm`}
-              >
-                {name}
-              </span>
-            ))}
+            {/* Participants */}
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {award.participantNames.map((name, i) => (
+                <span
+                  key={i}
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-gradient-to-r ${preset.border} text-white shadow-sm`}
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </div>
