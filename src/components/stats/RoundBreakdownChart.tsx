@@ -118,7 +118,7 @@ interface RoundChartProps {
 }
 
 function RoundChart({ roundName, matches }: RoundChartProps) {
-  const chartHeight = Math.max(220, matches.length * 80);
+  const chartHeight = 260;
 
   return (
     <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-4">

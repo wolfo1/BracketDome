@@ -156,7 +156,7 @@ export default async function StatsPage({ params }: StatsPageProps) {
         {hasVotes && awards.length > 0 && (
           <section className="space-y-4">
             <h2 className="text-xl font-semibold tracking-tight">Awards</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {awards.map((award) => (
                 <AwardCard key={award.title} award={award} />
               ))}

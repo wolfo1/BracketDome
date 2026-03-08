@@ -98,9 +98,9 @@ export function IndividualScoresChart({ scores, awards }: IndividualScoresChartP
   // Approximate height: at least 300px, 48px per row
   const chartHeight = Math.max(300, data.length * 52);
 
-  // Reserve space on the left for the longest name
+  // Reserve space on the left for the longest name; cap tighter so it fits on mobile
   const longestName = data.reduce((max, d) => Math.max(max, d.displayName.length), 0);
-  const yAxisWidth = Math.min(Math.max(longestName * 7, 80), 180);
+  const yAxisWidth = Math.min(Math.max(longestName * 7, 60), 130);
 
   return (
     <div className="w-full" style={{ height: chartHeight }}>
@@ -108,7 +108,7 @@ export function IndividualScoresChart({ scores, awards }: IndividualScoresChartP
         <BarChart
           layout="vertical"
           data={data}
-          margin={{ top: 8, right: 56, left: 8, bottom: 8 }}
+          margin={{ top: 8, right: 44, left: 8, bottom: 8 }}
         >
           <defs>
             <linearGradient id="scoreGradient" x1="0" y1="0" x2="1" y2="0">
