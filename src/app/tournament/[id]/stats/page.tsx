@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { computeStats } from "@/lib/stats";
 import { AwardCard } from "@/components/stats/AwardCard";
 import { IndividualScoresChart } from "@/components/stats/IndividualScoresChart";
-import { CorrelationHeatmap } from "@/components/stats/CorrelationHeatmap";
 import { RoundBreakdownChart } from "@/components/stats/RoundBreakdownChart";
 import { RoundData } from "@/types";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +90,7 @@ export default async function StatsPage({ params }: StatsPageProps) {
   const hasVotes = votes.length > 0;
 
   // Compute stats (safe to call even with empty votes — returns empty arrays)
-  const { individualScores, pairwiseCorrelations, awards } =
+  const { individualScores, awards } =
     computeStats(votes);
 
   // Build RoundData[] compatible with RoundBreakdownChart
@@ -175,23 +174,6 @@ export default async function StatsPage({ params }: StatsPageProps) {
             <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-6">
               <IndividualScoresChart
                 scores={individualScores}
-                awards={awards}
-              />
-            </div>
-          </section>
-        )}
-
-        {/* ----------------------------------------------------------------
-            Pairwise Correlation
-        ---------------------------------------------------------------- */}
-        {hasVotes && pairwiseCorrelations.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold tracking-tight">
-              Pairwise Agreement Heatmap
-            </h2>
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-6">
-              <CorrelationHeatmap
-                correlations={pairwiseCorrelations}
                 awards={awards}
               />
             </div>
