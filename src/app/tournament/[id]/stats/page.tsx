@@ -89,9 +89,20 @@ export default async function StatsPage({ params }: StatsPageProps) {
 
   const hasVotes = votes.length > 0;
 
+  // Build match context for True Believer / Clutch awards
+  const matchContexts = tournament.rounds.flatMap((round) =>
+    round.matches.map((match) => ({
+      matchId: match.id,
+      contestant1Id: match.contestant1?.id ?? null,
+      contestant2Id: match.contestant2?.id ?? null,
+      winnerId: match.winner?.id ?? null,
+      roundNumber: round.number,
+    }))
+  );
+
   // Compute stats (safe to call even with empty votes — returns empty arrays)
   const { individualScores, awards } =
-    computeStats(votes);
+    computeStats(votes, matchContexts);
 
   // Build RoundData[] compatible with RoundBreakdownChart
   const rounds: RoundData[] = tournament.rounds.map((round) => ({

@@ -53,6 +53,26 @@ const GRADIENT_PRESETS: Record<string, { border: string; bg: string; title: stri
     bg: "from-fuchsia-950/60 to-purple-950/40",
     title: "text-fuchsia-300",
   },
+  "✨": {
+    border: "from-cyan-300 via-white to-sky-300",
+    bg: "from-cyan-950/60 to-sky-950/40",
+    title: "text-cyan-200",
+  },
+  "🌶️": {
+    border: "from-rose-500 via-red-400 to-orange-400",
+    bg: "from-rose-950/60 to-red-950/40",
+    title: "text-rose-300",
+  },
+  "🎯": {
+    border: "from-green-500 via-emerald-400 to-teal-400",
+    bg: "from-green-950/60 to-emerald-950/40",
+    title: "text-green-300",
+  },
+  "👑": {
+    border: "from-amber-300 via-yellow-200 to-amber-400",
+    bg: "from-amber-950/60 to-yellow-950/40",
+    title: "text-amber-200",
+  },
 };
 
 const DEFAULT_PRESET = {
