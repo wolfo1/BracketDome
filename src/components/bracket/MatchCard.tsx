@@ -18,7 +18,7 @@ export default function MatchCard({ match, roundColor, onClick }: MatchCardProps
 
   const hasAnyContestant = contestant1 !== null || contestant2 !== null;
   // A real BYE is when one slot is empty AND the winner is already decided (auto-advanced at creation).
-  // If winner is null, the empty slot means the opponent hasn't advanced yet (show TBD, not BYE).
+  // If winner is null, the empty slot means the opponent hasn't advanced yet (show 💫 TBD, not BYE).
   const isBye =
     winner !== null &&
     ((contestant1 !== null && contestant2 === null) ||
@@ -39,8 +39,8 @@ export default function MatchCard({ match, roundColor, onClick }: MatchCardProps
         className="cursor-pointer rounded-lg border border-gray-700 bg-gray-900 p-3 w-48 select-none"
       >
         <div className="flex flex-col gap-1">
-          <div className="rounded px-2 py-1 text-sm text-gray-500 bg-gray-800">TBD</div>
-          <div className="rounded px-2 py-1 text-sm text-gray-500 bg-gray-800">TBD</div>
+          <div className="rounded px-2 py-1 text-sm text-gray-500 bg-gray-800">💫 TBD</div>
+          <div className="rounded px-2 py-1 text-sm text-gray-500 bg-gray-800">💫 TBD</div>
         </div>
       </motion.div>
     );
@@ -87,7 +87,7 @@ export default function MatchCard({ match, roundColor, onClick }: MatchCardProps
           }
         >
           <span className="truncate max-w-[7rem]">
-            {contestant1 ? contestant1.name : "TBD"}
+            {contestant1 ? contestant1.name : "💫 TBD"}
           </span>
           <span className="flex items-center gap-1 ml-1 shrink-0">
             {isWinner1 && <span>&#x1F451;</span>}
@@ -112,7 +112,7 @@ export default function MatchCard({ match, roundColor, onClick }: MatchCardProps
           }
         >
           <span className="truncate max-w-[7rem]">
-            {contestant2 ? contestant2.name : "TBD"}
+            {contestant2 ? contestant2.name : "💫 TBD"}
           </span>
           <span className="flex items-center gap-1 ml-1 shrink-0">
             {isWinner2 && <span>&#x1F451;</span>}
