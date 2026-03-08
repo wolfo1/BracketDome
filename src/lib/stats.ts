@@ -247,7 +247,7 @@ function computeAwards(
       const oddCouple = nonContrarianPairs[nonContrarianPairs.length - 1];
       awards.push({
         emoji: "🥊",
-        title: "The Odd Couple",
+        title: "The Feud",
         description: "Most disagreeing pair, excluding the Contrarian",
         participantIds: [oddCouple.participant1Id, oddCouple.participant2Id],
         participantNames: [oddCouple.participant1Name, oddCouple.participant2Name],
