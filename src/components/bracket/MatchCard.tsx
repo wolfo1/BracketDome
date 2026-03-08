@@ -17,9 +17,12 @@ export default function MatchCard({ match, roundColor, onClick }: MatchCardProps
   const { contestant1, contestant2, winner, votes } = match;
 
   const hasAnyContestant = contestant1 !== null || contestant2 !== null;
+  // A real BYE is when one slot is empty AND the winner is already decided (auto-advanced at creation).
+  // If winner is null, the empty slot means the opponent hasn't advanced yet (show TBD, not BYE).
   const isBye =
-    (contestant1 !== null && contestant2 === null) ||
-    (contestant1 === null && contestant2 !== null);
+    winner !== null &&
+    ((contestant1 !== null && contestant2 === null) ||
+      (contestant1 === null && contestant2 !== null));
   const byeContestant = contestant1 ?? contestant2;
 
   const isWinner1 = winner !== null && contestant1 !== null && winner.id === contestant1.id;
