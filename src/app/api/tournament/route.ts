@@ -45,10 +45,11 @@ export async function POST(req: NextRequest) {
 
     const { rounds, bracketSize } = generateBracketStructure(contestants.length);
 
-    const seededContestants: { name: string; seed: number }[] = contestants.map(
-      (c: { name: string; seed?: number }, i: number) => ({
+    const seededContestants: { name: string; seed: number; links: string[] }[] = contestants.map(
+      (c: { name: string; seed?: number; links?: string[] }, i: number) => ({
         name: c.name,
         seed: c.seed ?? i + 1,
+        links: c.links ?? [],
       })
     );
 
@@ -72,6 +73,15 @@ export async function POST(req: NextRequest) {
       })),
     });
     const sortedContestants = [...createdContestants].sort((a, b) => a.seed - b.seed);
+
+    // Bulk-create contestant links
+    const linkData = sortedContestants.flatMap((c) => {
+      const original = seededContestants.find((s) => s.name === c.name);
+      return (original?.links ?? []).map((url) => ({ url, contestantId: c.id }));
+    });
+    if (linkData.length > 0) {
+      await prisma.contestantLink.createMany({ data: linkData });
+    }
 
     // 1 query: bulk-create participants
     await prisma.participant.createMany({

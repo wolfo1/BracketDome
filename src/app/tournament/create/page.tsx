@@ -31,7 +31,7 @@ function getRoundNames(count: number): string[] {
 function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
   const steps = [
     { n: 1 as const, label: "Details" },
-    { n: 2 as const, label: "Contestants" },
+    { n: 2 as const, label: "Setup" },
     { n: 3 as const, label: "Preview" },
   ];
   return (
@@ -106,6 +106,8 @@ export default function CreateTournamentPage() {
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bracketCSVInputRef = useRef<HTMLInputElement>(null);
+  const participantCSVInputRef = useRef<HTMLInputElement>(null);
 
   // ── Step 1 helpers ──────────────────────────────────────────────────────────
 
@@ -138,10 +140,6 @@ export default function CreateTournamentPage() {
   function validateStep1(): boolean {
     if (!title.trim()) {
       toast.error("Please enter a tournament title.");
-      return false;
-    }
-    if (participants.length < 2) {
-      toast.error("Add at least 2 participants.");
       return false;
     }
     return true;
@@ -178,37 +176,79 @@ export default function CreateTournamentPage() {
     );
   }
 
+  // Step 2: contestants-only upload (Excel or CSV)
   async function uploadFile(file: File) {
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Upload failed.");
-        return;
-      }
+      if (!res.ok) { toast.error(data.error ?? "Upload failed."); return; }
       const incoming: { name: string; seed?: number }[] = data.contestants;
-      // Merge — skip duplicates
       setContestants((prev) => {
         const existingNames = new Set(prev.map((c) => c.name));
         const fresh = incoming.filter((c) => !existingNames.has(c.name));
-        const merged = [...prev, ...fresh].map((c, i) => ({
-          ...c,
-          seed: c.seed ?? i + 1,
-        }));
-        return merged;
+        return [...prev, ...fresh].map((c, i) => ({ ...c, seed: c.seed ?? i + 1 }));
       });
-      toast.success(`Imported ${incoming.length} contestant(s) from file.`);
+      toast.success(`Imported ${incoming.length} contestant(s).`);
     } catch {
       toast.error("Failed to upload file.");
     } finally {
       setLoading(false);
     }
+  }
+
+  // "Create bracket from CSV" — fills both contestants + participants, skips to Step 3
+  async function importBracketCSV(file: File) {
+    if (!title.trim()) { toast.error("Please enter a title first."); return; }
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Upload failed."); return; }
+      const importedContestants: { name: string; seed?: number }[] = data.contestants;
+      const importedParticipants: string[] = data.participants ?? [];
+      if (importedContestants.length < 2) { toast.error("CSV must have at least 2 contestants."); return; }
+      setContestants(importedContestants.map((c, i) => ({ ...c, seed: c.seed ?? i + 1 })));
+      setParticipants(importedParticipants);
+      const parts = [`${importedContestants.length} contestants`];
+      if (importedParticipants.length > 0) parts.push(`${importedParticipants.length} participants`);
+      toast.success(`Imported ${parts.join(" and ")}.`);
+      setStep(3);
+    } catch {
+      toast.error("Failed to read CSV.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Step 1: participants-only CSV import (client-side, no API)
+  function parseParticipantCSV(text: string): string[] {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return [];
+    const firstLower = lines[0].toLowerCase();
+    const hasHeader = firstLower === "name" || firstLower.startsWith("name,");
+    return (hasHeader ? lines.slice(1) : lines)
+      .map((line) => line.split(",")[0].replace(/^"|"$/g, "").trim())
+      .filter(Boolean);
+  }
+
+  async function handleParticipantCSVChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    const text = await file.text();
+    const names = parseParticipantCSV(text);
+    if (names.length === 0) { toast.error("No names found in CSV."); return; }
+    setParticipants((prev) => {
+      const existing = new Set(prev);
+      const fresh = names.filter((n) => !existing.has(n));
+      return [...prev, ...fresh];
+    });
+    toast.success(`Added ${names.length} participant(s) from CSV.`);
   }
 
   const handleFileChange = useCallback(
@@ -229,6 +269,10 @@ export default function CreateTournamentPage() {
   }, []);
 
   function validateStep2(): boolean {
+    if (participants.length < 2) {
+      toast.error("Add at least 2 participants.");
+      return false;
+    }
     if (contestants.length < 2) {
       toast.error("Add at least 2 contestants.");
       return false;
@@ -300,138 +344,76 @@ export default function CreateTournamentPage() {
 
         <StepIndicator current={step} />
 
-        {/* ── Step 1: Details + Participants ───────────────────────────────── */}
+        {/* ── Step 1: Details ───────────────────────────────────────────────── */}
         {step === 1 && (
           <div className="flex flex-col gap-6 rounded-2xl border border-gray-800 bg-gray-900/70 p-6 shadow-xl">
-            <div>
-              <h2 className="text-lg font-bold text-white mb-4">
-                Tournament Details
-              </h2>
-
-              <div className="flex flex-col gap-4">
-                {/* Title */}
-                <div className="flex flex-col gap-1.5">
-                  <Label
-                    htmlFor="title"
-                    className="text-xs font-semibold uppercase tracking-widest text-gray-400"
-                  >
-                    Title *
-                  </Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Best Movie of 2024"
-                    className="bg-gray-800/60 border-gray-700 text-white placeholder:text-gray-600 focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
-                  />
-                </div>
-
-                {/* Description */}
-                <div className="flex flex-col gap-1.5">
-                  <Label
-                    htmlFor="description"
-                    className="text-xs font-semibold uppercase tracking-widest text-gray-400"
-                  >
-                    Description
-                  </Label>
-                  <textarea
-                    id="description"
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Optional — describe the tournament"
-                    className="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-4 py-2.5 text-sm text-white placeholder:text-gray-600 outline-none transition resize-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-
-                {/* Start date */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="startDate" className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                    Start Date <span className="normal-case font-normal text-gray-600">(optional)</span>
-                  </Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-gray-800/60 border-gray-700 text-white focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
-                  />
-                </div>
-
-                {/* Private toggle */}
-                <label className="flex items-center justify-between rounded-xl border border-gray-700 bg-gray-800/40 px-4 py-3 cursor-pointer">
-                  <div>
-                    <span className="text-sm font-semibold text-white">Private tournament</span>
-                    <p className="text-xs text-gray-500 mt-0.5">Only people you invite can view this tournament</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isPrivate}
-                    onClick={() => setIsPrivate((v) => !v)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline-none ${isPrivate ? "bg-indigo-600" : "bg-gray-700"}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform ${isPrivate ? "translate-x-5" : "translate-x-0"}`} />
-                  </button>
-                </label>
-              </div>
-            </div>
-
-            {/* Participants */}
-            <div>
-              <h2 className="text-lg font-bold text-white mb-1">
-                Participants
-              </h2>
-              <p className="text-xs text-gray-500 mb-3">
-                These are the voters. Enter names separated by commas, or add
-                one at a time.
-              </p>
-
-              <div className="flex gap-2 mb-3">
-                <Input
-                  value={participantInput}
-                  onChange={(e) => setParticipantInput(e.target.value)}
-                  onKeyDown={handleParticipantKeyDown}
-                  placeholder="Alice, Bob, Charlie…"
-                  className="flex-1 bg-gray-800/60 border-gray-700 text-white placeholder:text-gray-600 focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
-                />
-                <Button
-                  type="button"
-                  onClick={addParticipantFromInput}
-                  variant="outline"
-                  className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white shrink-0"
+            <div className="flex flex-col gap-4">
+              {/* Title */}
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="title"
+                  className="text-xs font-semibold uppercase tracking-widest text-gray-400"
                 >
-                  Add
-                </Button>
+                  Title *
+                </Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && goNext()}
+                  placeholder="e.g. Best Movie of 2024"
+                  className="bg-gray-800/60 border-gray-700 text-white placeholder:text-gray-600 focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                />
               </div>
 
-              {participants.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {participants.map((name) => (
-                    <Badge
-                      key={name}
-                      variant="secondary"
-                      className="bg-indigo-900/40 text-indigo-300 border border-indigo-700/50 flex items-center gap-1.5 pr-1.5"
-                    >
-                      {name}
-                      <button
-                        type="button"
-                        onClick={() => removeParticipant(name)}
-                        className="ml-0.5 rounded-sm text-indigo-400 hover:text-white transition-colors leading-none"
-                        aria-label={`Remove ${name}`}
-                      >
-                        &times;
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
+              {/* Description */}
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="description"
+                  className="text-xs font-semibold uppercase tracking-widest text-gray-400"
+                >
+                  Description
+                </Label>
+                <textarea
+                  id="description"
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Optional — describe the tournament"
+                  className="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-4 py-2.5 text-sm text-white placeholder:text-gray-600 outline-none transition resize-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
 
-              {participants.length === 0 && (
-                <p className="text-xs text-gray-600 italic">
-                  No participants added yet.
-                </p>
-              )}
+              {/* Start date */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="startDate" className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Start Date <span className="normal-case font-normal text-gray-600">(optional)</span>
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-gray-800/60 border-gray-700 text-white focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                />
+              </div>
+
+              {/* Private toggle */}
+              <label className="flex items-center justify-between rounded-xl border border-gray-700 bg-gray-800/40 px-4 py-3 cursor-pointer">
+                <div>
+                  <span className="text-sm font-semibold text-white">Private tournament</span>
+                  <p className="text-xs text-gray-500 mt-0.5">Only people you invite can view this tournament</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isPrivate}
+                  onClick={() => setIsPrivate((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline-none ${isPrivate ? "bg-indigo-600" : "bg-gray-700"}`}
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform ${isPrivate ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
+              </label>
             </div>
 
             {/* Navigation */}
@@ -440,26 +422,88 @@ export default function CreateTournamentPage() {
                 onClick={goNext}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6"
               >
-                Next: Add Contestants
+                Next: Setup
               </Button>
             </div>
           </div>
         )}
 
-        {/* ── Step 2: Contestants ───────────────────────────────────────────── */}
+        {/* ── Step 2: Setup (CSV import or manual) ─────────────────────────── */}
         {step === 2 && (
           <div className="flex flex-col gap-6 rounded-2xl border border-gray-800 bg-gray-900/70 p-6 shadow-xl">
-            <div>
-              <h2 className="text-lg font-bold text-white mb-1">
-                Add Contestants
-              </h2>
-              <p className="text-xs text-gray-500 mb-4">
-                These compete in the bracket. Add manually or upload an
-                Excel/CSV file.
-              </p>
 
-              {/* Manual entry */}
-              <div className="flex gap-2 mb-5">
+            {/* Create bracket from CSV */}
+            <div>
+              <input
+                ref={bracketCSVInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) importBracketCSV(file);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => bracketCSVInputRef.current?.click()}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-700/60 bg-indigo-950/20 px-4 py-3 text-sm font-semibold text-indigo-400 hover:bg-indigo-900/30 hover:border-indigo-600 hover:text-indigo-300 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                {loading ? "Importing…" : "Create bracket from CSV"}
+              </button>
+              <p className="text-xs text-gray-600 text-center mt-1.5">
+                CSV with Type, Name, Seed columns — fills everything and skips to preview
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-800" />
+              <span className="text-xs text-gray-600">or fill in manually</span>
+              <div className="flex-1 h-px bg-gray-800" />
+            </div>
+
+            {/* Participants */}
+            <div>
+              <h2 className="text-base font-bold text-white mb-1">Participants</h2>
+              <p className="text-xs text-gray-500 mb-3">The voters. Comma-separated, one at a time, or CSV.</p>
+              <input ref={participantCSVInputRef} type="file" accept=".csv" className="hidden" onChange={handleParticipantCSVChange} />
+              <div className="flex gap-2 mb-3">
+                <Input
+                  value={participantInput}
+                  onChange={(e) => setParticipantInput(e.target.value)}
+                  onKeyDown={handleParticipantKeyDown}
+                  placeholder="Alice, Bob, Charlie…"
+                  className="flex-1 bg-gray-800/60 border-gray-700 text-white placeholder:text-gray-600 focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                />
+                <Button type="button" onClick={addParticipantFromInput} variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white shrink-0">Add</Button>
+                <Button type="button" onClick={() => participantCSVInputRef.current?.click()} variant="outline" className="border-gray-700 text-gray-500 hover:bg-gray-800 hover:text-white shrink-0" title="Import participants from CSV">CSV</Button>
+              </div>
+              {participants.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {participants.map((name) => (
+                    <Badge key={name} variant="secondary" className="bg-indigo-900/40 text-indigo-300 border border-indigo-700/50 flex items-center gap-1.5 pr-1.5">
+                      {name}
+                      <button type="button" onClick={() => removeParticipant(name)} className="ml-0.5 rounded-sm text-indigo-400 hover:text-white transition-colors leading-none" aria-label={`Remove ${name}`}>&times;</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {participants.length === 0 && <p className="text-xs text-gray-600 italic">No participants added yet.</p>}
+            </div>
+
+            <div className="h-px bg-gray-800" />
+
+            {/* Contestants */}
+            <div>
+              <h2 className="text-base font-bold text-white mb-1">Contestants</h2>
+              <p className="text-xs text-gray-500 mb-3">These compete in the bracket. Add manually or upload a file.</p>
+
+              <div className="flex gap-2 mb-4">
                 <Input
                   value={contestantInput}
                   onChange={(e) => setContestantInput(e.target.value)}
@@ -467,136 +511,55 @@ export default function CreateTournamentPage() {
                   placeholder="Contestant name…"
                   className="flex-1 bg-gray-800/60 border-gray-700 text-white placeholder:text-gray-600 focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
                 />
-                <Button
-                  type="button"
-                  onClick={addContestantFromInput}
-                  variant="outline"
-                  className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white shrink-0"
-                >
-                  Add
-                </Button>
+                <Button type="button" onClick={addContestantFromInput} variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white shrink-0">Add</Button>
               </div>
 
-              {/* File upload drop zone */}
               <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-                  dragOver
-                    ? "border-indigo-500 bg-indigo-900/20"
-                    : "border-gray-700 bg-gray-800/30 hover:border-gray-600 hover:bg-gray-800/50"
-                }`}
+                className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-6 text-center transition-colors ${dragOver ? "border-indigo-500 bg-indigo-900/20" : "border-gray-700 bg-gray-800/30 hover:border-gray-600 hover:bg-gray-800/50"}`}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <svg
-                  className={`w-8 h-8 ${dragOver ? "text-indigo-400" : "text-gray-600"}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                  />
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
+                <svg className={`w-7 h-7 ${dragOver ? "text-indigo-400" : "text-gray-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
                 {loading ? (
-                  <p className="text-sm text-indigo-400 font-medium">
-                    Uploading…
-                  </p>
+                  <p className="text-sm text-indigo-400 font-medium">Uploading…</p>
                 ) : (
                   <>
-                    <p className="text-sm text-gray-400">
-                      <span className="font-semibold text-gray-300">
-                        Click to upload
-                      </span>{" "}
-                      or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      Excel (.xlsx, .xls) or CSV with a{" "}
-                      <span className="font-semibold">Name</span> column
-                    </p>
+                    <p className="text-sm text-gray-400"><span className="font-semibold text-gray-300">Click to upload</span> or drag and drop</p>
+                    <p className="text-xs text-gray-600">Excel (.xlsx, .xls) or CSV with a <span className="font-semibold">Name</span> column</p>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Contestants list */}
             {contestants.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-gray-300">
-                    {contestants.length} contestant
-                    {contestants.length !== 1 ? "s" : ""}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setContestants([])}
-                    className="text-xs text-gray-600 hover:text-red-400 transition-colors"
-                  >
-                    Clear all
-                  </button>
+                  <p className="text-sm font-semibold text-gray-300">{contestants.length} contestant{contestants.length !== 1 ? "s" : ""}</p>
+                  <button type="button" onClick={() => setContestants([])} className="text-xs text-gray-600 hover:text-red-400 transition-colors">Clear all</button>
                 </div>
                 <ul className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-1">
                   {contestants.map((c, i) => (
-                    <li
-                      key={c.name}
-                      className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/50 px-3 py-2"
-                    >
+                    <li key={c.name} className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/50 px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 w-5 text-right font-mono">
-                          {i + 1}
-                        </span>
+                        <span className="text-xs text-gray-600 w-5 text-right font-mono">{i + 1}</span>
                         <span className="text-sm text-white">{c.name}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeContestant(c.name)}
-                        className="text-gray-600 hover:text-red-400 transition-colors text-lg leading-none"
-                        aria-label={`Remove ${c.name}`}
-                      >
-                        &times;
-                      </button>
+                      <button type="button" onClick={() => removeContestant(c.name)} className="text-gray-600 hover:text-red-400 transition-colors text-lg leading-none" aria-label={`Remove ${c.name}`}>&times;</button>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {contestants.length === 0 && (
-              <p className="text-xs text-gray-600 italic">
-                No contestants added yet.
-              </p>
-            )}
-
             {/* Navigation */}
             <div className="flex items-center justify-between pt-2">
-              <Button
-                type="button"
-                onClick={goBack}
-                variant="ghost"
-                className="text-gray-400 hover:text-white hover:bg-gray-800"
-              >
-                Back
-              </Button>
-              <Button
-                onClick={goNext}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6"
-              >
-                Next: Preview
-              </Button>
+              <Button type="button" onClick={goBack} variant="ghost" className="text-gray-400 hover:text-white hover:bg-gray-800">Back</Button>
+              <Button onClick={goNext} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6">Next: Preview</Button>
             </div>
           </div>
         )}

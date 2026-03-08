@@ -21,35 +21,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File is empty" }, { status: 400 });
   }
 
-  // Find header row indices
   const headers = rows[0].map((h) => String(h).toLowerCase().trim());
+  const typeIdx = headers.findIndex((h) => h === "type");
   const nameIdx = headers.findIndex((h) => h.includes("name"));
   const seedIdx = headers.findIndex((h) => h.includes("seed"));
+  const linksIdx = headers.findIndex((h) => h.includes("link"));
 
   if (nameIdx === -1) {
-    return NextResponse.json(
-      { error: "No 'Name' column found" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "No 'Name' column found" }, { status: 400 });
   }
 
-  const contestants: { name: string; seed?: number }[] = [];
+  function parseSeed(row: string[]): number | undefined {
+    if (seedIdx === -1) return undefined;
+    const raw = row[seedIdx];
+    if (!raw) return undefined;
+    const n = parseInt(String(raw), 10);
+    return isNaN(n) ? undefined : n;
+  }
+
+  function parseLinks(row: string[]): string[] {
+    if (linksIdx === -1) return [];
+    return String(row[linksIdx] ?? "").split(";").map((u) => u.trim()).filter(Boolean);
+  }
+
+  // Full bracket CSV: Type column present
+  if (typeIdx !== -1) {
+    const contestants: { name: string; seed?: number; links: string[] }[] = [];
+    const participants: string[] = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const type = String(row[typeIdx] ?? "").toLowerCase().trim();
+      const name = String(row[nameIdx] ?? "").trim();
+      if (!name) continue;
+
+      if (type === "contestant") {
+        contestants.push({ name, seed: parseSeed(row), links: parseLinks(row) });
+      } else if (type === "participant") {
+        participants.push(name);
+      }
+    }
+
+    if (contestants.length === 0 && participants.length === 0) {
+      return NextResponse.json({ error: "No data found in file" }, { status: 400 });
+    }
+
+    return NextResponse.json({ contestants, participants });
+  }
+
+  // Legacy: contestants-only (no Type column)
+  const contestants: { name: string; seed?: number; links: string[] }[] = [];
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     const name = String(row[nameIdx] ?? "").trim();
     if (!name) continue;
-
-    const seed =
-      seedIdx !== -1 && row[seedIdx] !== ""
-        ? parseInt(String(row[seedIdx]), 10)
-        : undefined;
-
-    contestants.push({ name, seed: isNaN(seed as number) ? undefined : seed });
+    contestants.push({ name, seed: parseSeed(row), links: parseLinks(row) });
   }
 
   if (contestants.length === 0) {
     return NextResponse.json({ error: "No contestants found" }, { status: 400 });
   }
 
-  return NextResponse.json({ contestants });
+  return NextResponse.json({ contestants, participants: [] });
 }

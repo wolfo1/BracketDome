@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -33,6 +33,146 @@ function getStatusColor(status: string) {
   if (status === "ACTIVE") return "bg-emerald-900/60 text-emerald-300 border-emerald-600";
   if (status === "COMPLETED") return "bg-purple-900/60 text-purple-300 border-purple-600";
   return "bg-gray-700 text-gray-300 border-gray-600";
+}
+
+// ─── CSV export helpers ────────────────────────────────────────────────────────
+
+function csvEscape(value: string): string {
+  const str = String(value ?? "");
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function downloadCSV(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildResultsCSV(tournament: TournamentData): string {
+  const rows: string[] = ["Round,Position,Contestant1,Contestant2,Winner,Voter,VotedFor"];
+  for (const round of tournament.rounds) {
+    for (const match of round.matches) {
+      if (!match.contestant1 || !match.contestant2) continue;
+      const c1 = csvEscape(match.contestant1.name);
+      const c2 = csvEscape(match.contestant2.name);
+      const winner = csvEscape(match.winner?.name ?? "");
+      if (match.votes.length === 0) {
+        rows.push(`${csvEscape(round.name)},${match.position},${c1},${c2},${winner},,`);
+      } else {
+        for (const vote of match.votes) {
+          rows.push(`${csvEscape(round.name)},${match.position},${c1},${c2},${winner},${csvEscape(vote.participantName)},${csvEscape(vote.votedForName)}`);
+        }
+      }
+    }
+  }
+  return rows.join("\n");
+}
+
+// Returns the seed that should be assigned to each bracket slot index,
+// matching the same seeding algorithm used to generate the bracket.
+function computeSlotSeeds(bracketSize: number): number[] {
+  function buildMerged(seedList: number[]): number[] {
+    if (seedList.length === 2) return seedList;
+    const half = seedList.length / 2;
+    const top = seedList.slice(0, half);
+    const bottom = seedList.slice(half).reverse();
+    const merged: number[] = [];
+    for (let i = 0; i < top.length; i++) merged.push(top[i], bottom[i]);
+    return merged;
+  }
+  return buildMerged(Array.from({ length: bracketSize }, (_, i) => i + 1));
+}
+
+function buildConfigCSV(tournament: TournamentData): string {
+  const rows: string[] = ["Type,Name,Seed,Links"];
+
+  const round1 = tournament.rounds.find((r) => r.number === 1);
+  if (round1 && round1.matches.length > 0) {
+    // Derive seeds from actual bracket slot positions (reflects any shuffles)
+    const bracketSize = round1.matches.length * 2;
+    const slotSeeds = computeSlotSeeds(bracketSize);
+    const sortedMatches = [...round1.matches].sort((a, b) => a.position - b.position);
+    for (let i = 0; i < sortedMatches.length; i++) {
+      const { contestant1, contestant2 } = sortedMatches[i];
+      if (contestant1) {
+        const links = contestant1.links.map((l) => l.url).join(";");
+        rows.push(`contestant,${csvEscape(contestant1.name)},${slotSeeds[i * 2]},${csvEscape(links)}`);
+      }
+      if (contestant2) {
+        const links = contestant2.links.map((l) => l.url).join(";");
+        rows.push(`contestant,${csvEscape(contestant2.name)},${slotSeeds[i * 2 + 1]},${csvEscape(links)}`);
+      }
+    }
+  } else {
+    for (const c of tournament.contestants) {
+      const links = c.links.map((l) => l.url).join(";");
+      rows.push(`contestant,${csvEscape(c.name)},${c.seed},${csvEscape(links)}`);
+    }
+  }
+
+  for (const p of tournament.participants) {
+    rows.push(`participant,${csvEscape(p.name)},,`);
+  }
+  return rows.join("\n");
+}
+
+function safeFilename(title: string): string {
+  return title.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_");
+}
+
+// ─── Export panel ─────────────────────────────────────────────────────────────
+
+function ExportPanel({ tournament }: { tournament: TournamentData }) {
+  const [open, setOpen] = useState(false);
+
+  function handleExportResults() {
+    downloadCSV(buildResultsCSV(tournament), `${safeFilename(tournament.title)}-results.csv`);
+  }
+
+  function handleExportConfig() {
+    downloadCSV(buildConfigCSV(tournament), `${safeFilename(tournament.title)}-bracket.csv`);
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-300 hover:text-white transition-colors"
+      >
+        <span>Export</span>
+        <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 flex flex-col gap-2 border-t border-gray-800 pt-3">
+          <p className="text-xs text-gray-500 mb-1">Download tournament data as CSV.</p>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleExportResults}
+              variant="outline"
+              className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white text-xs h-8"
+            >
+              Results CSV
+            </Button>
+            <Button
+              onClick={handleExportConfig}
+              variant="outline"
+              className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white text-xs h-8"
+            >
+              Bracket Config CSV
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Match form card ──────────────────────────────────────────────────────────
@@ -510,6 +650,8 @@ function AddParticipantPanel({ tournamentId, participantCount, maxParticipants, 
 }) {
   const [name, setName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [importingCSV, setImportingCSV] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   async function handleAdd() {
     if (!name.trim()) return;
@@ -532,6 +674,52 @@ function AddParticipantPanel({ tournamentId, participantCount, maxParticipants, 
     }
   }
 
+  function parseParticipantCSV(text: string): string[] {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return [];
+    const firstLower = lines[0].toLowerCase();
+    const hasHeader = firstLower === "name" || firstLower.startsWith("name,");
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    return dataLines.map((line) => line.split(",")[0].replace(/^"|"$/g, "").trim()).filter(Boolean);
+  }
+
+  async function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const text = await file.text();
+    const names = parseParticipantCSV(text);
+    if (names.length === 0) { toast.error("No names found in CSV."); return; }
+
+    const remaining = maxParticipants - participantCount;
+    const toAdd = names.slice(0, remaining);
+    const overLimit = names.length - toAdd.length;
+
+    setImportingCSV(true);
+    let added = 0;
+    let failed = 0;
+    for (const n of toAdd) {
+      try {
+        const res = await fetch(`/api/tournament/${tournamentId}/participant`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: n }),
+        });
+        if (res.ok) { added++; } else { failed++; }
+      } catch { failed++; }
+    }
+    setImportingCSV(false);
+    onRefresh();
+
+    const parts = [`Added ${added} of ${names.length} participant(s)`];
+    if (failed > 0) parts.push(`${failed} failed`);
+    if (overLimit > 0) parts.push(`${overLimit} skipped (limit reached)`);
+    toast.success(parts.join(", ") + ".");
+  }
+
+  const atLimit = participantCount >= maxParticipants;
+
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -545,17 +733,33 @@ function AddParticipantPanel({ tournamentId, participantCount, maxParticipants, 
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           placeholder="New participant name"
           className="h-8 text-sm bg-gray-800 border-gray-700"
-          disabled={participantCount >= maxParticipants}
+          disabled={atLimit}
         />
         <Button
           onClick={handleAdd}
-          disabled={adding || !name.trim() || participantCount >= maxParticipants}
+          disabled={adding || !name.trim() || atLimit}
           className="h-8 px-3 text-xs bg-emerald-700 hover:bg-emerald-600"
         >
           {adding ? "Adding…" : "Add"}
         </Button>
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleCSVUpload}
+        />
+        <Button
+          onClick={() => csvInputRef.current?.click()}
+          disabled={importingCSV || atLimit}
+          variant="outline"
+          className="h-8 px-3 text-xs border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white shrink-0"
+          title="Import participants from CSV"
+        >
+          {importingCSV ? "Importing…" : "CSV"}
+        </Button>
       </div>
-      {participantCount >= maxParticipants && (
+      {atLimit && (
         <p className="text-xs text-amber-500">Participant limit reached ({maxParticipants}).</p>
       )}
     </div>
@@ -709,6 +913,7 @@ export default function AdminPage() {
         <div className="flex flex-col gap-3">
           <EditTournamentPanel tournament={tournament} onSaved={fetchTournament} />
           <ContestantLinksPanel tournamentId={id} contestants={tournament.contestants} onRefresh={fetchTournament} />
+          <ExportPanel tournament={tournament} />
           <AddParticipantPanel
             tournamentId={id}
             participantCount={tournament.participants.length}
