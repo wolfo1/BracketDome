@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { PairwiseCorrelation, Award } from "@/lib/stats";
 
 interface CorrelationHeatmapProps {
@@ -52,6 +52,16 @@ interface TooltipState {
 
 export function CorrelationHeatmap({ correlations, awards }: CorrelationHeatmapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   // Collect all unique participants, preserving encounter order
   const participantMap = new Map<string, string>(); // id -> name
@@ -82,13 +92,19 @@ export function CorrelationHeatmap({ correlations, awards }: CorrelationHeatmapP
   }
 
   const n = participants.length;
-  // Cell size adapts to number of participants
-  const cellSize = n <= 6 ? 64 : n <= 10 ? 48 : 36;
-  const labelWidth = 120;
-  const fontSize = cellSize >= 48 ? 13 : 11;
+  // Compute cell size to fit within the measured container width.
+  // Falls back to generous sizes when containerWidth is not yet known (SSR / first paint).
+  const idealCellSize = n <= 6 ? 64 : n <= 10 ? 48 : 36;
+  const labelWidth = containerWidth > 0 && containerWidth < 500 ? 80 : 120;
+  const fittedCellSize =
+    containerWidth > 0
+      ? Math.max(24, Math.floor((containerWidth - labelWidth - n * 2) / n))
+      : idealCellSize;
+  const cellSize = Math.min(idealCellSize, fittedCellSize);
+  const fontSize = cellSize >= 48 ? 13 : cellSize >= 32 ? 11 : 9;
 
   return (
-    <div className="relative w-full overflow-x-auto">
+    <div ref={containerRef} className="relative w-full">
       {/* Tooltip */}
       {tooltip && (
         <div
@@ -99,7 +115,7 @@ export function CorrelationHeatmap({ correlations, awards }: CorrelationHeatmapP
         </div>
       )}
 
-      <div className="inline-block min-w-full">
+      <div>
         {/* Column headers */}
         <div
           className="flex"
