@@ -217,26 +217,20 @@ function computeAwards(
     participantNames: [mismatch.participant1Name, mismatch.participant2Name],
   });
 
-  // Unlikely Allies — highest correlation pair not involving the Contrarian
+  // The Odd Couple — most disagreeing pair not involving the Contrarian
   const nonContrarianPairs = sortedPairs.filter(
     (p) =>
       p.participant1Id !== contrarian.participantId &&
       p.participant2Id !== contrarian.participantId
   );
   if (nonContrarianPairs.length > 0) {
-    const unlikelyAllies = nonContrarianPairs[0];
+    const oddCouple = nonContrarianPairs[nonContrarianPairs.length - 1];
     awards.push({
-      emoji: "🤔",
-      title: "Unlikely Allies",
-      description: "Highest agreement pair, excluding the Contrarian",
-      participantIds: [
-        unlikelyAllies.participant1Id,
-        unlikelyAllies.participant2Id,
-      ],
-      participantNames: [
-        unlikelyAllies.participant1Name,
-        unlikelyAllies.participant2Name,
-      ],
+      emoji: "🥊",
+      title: "The Odd Couple",
+      description: "Most disagreeing pair, excluding the Contrarian",
+      participantIds: [oddCouple.participant1Id, oddCouple.participant2Id],
+      participantNames: [oddCouple.participant1Name, oddCouple.participant2Name],
     });
   }
 

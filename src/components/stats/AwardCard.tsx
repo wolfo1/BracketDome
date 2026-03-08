@@ -43,6 +43,11 @@ const GRADIENT_PRESETS: Record<string, { border: string; bg: string; title: stri
     bg: "from-sky-950/60 to-blue-950/40",
     title: "text-sky-300",
   },
+  "🥊": {
+    border: "from-red-500 via-orange-400 to-yellow-400",
+    bg: "from-red-950/60 to-orange-950/40",
+    title: "text-red-300",
+  },
   "🤷": {
     border: "from-fuchsia-500 via-purple-400 to-indigo-400",
     bg: "from-fuchsia-950/60 to-purple-950/40",
